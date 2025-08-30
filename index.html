@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <title>Monster Hunt — Catch the Wisdom</title>
+  <style>
+    :root{
+      --bg1:#1a1a2e; --bg2:#16213e; --bg3:#0f3460; --panel:#ffffff; --text:#111;
+      --accent:#ff6b6b; --secondary:#4ecdc4; --success:#45b7d1;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;padding:0;touch-action:none;user-select:none}
+    body{
+      background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+      font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      overflow:hidden;
+    }
+    @media (hover:hover) and (pointer:fine){ body{cursor:none} }
+
+    canvas{display:block; width:100vw; height:100vh}
+
+    /* Enhanced proverb panel with better responsive scaling */
+    #proverbPanel{
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(0.9);
+      background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+      backdrop-filter: blur(20px); color:var(--text);
+      padding:clamp(16px, 4vw, 28px) clamp(20px, 5vw, 32px); border-radius:clamp(12px, 3vw, 20px); 
+      box-shadow:0 25px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.2);
+      max-width:min(500px,92vw); text-align:center; pointer-events:none;
+      opacity:0; transition:all .4s cubic-bezier(.2,.9,.3,1);
+      z-index:40; font-weight:600; font-size:clamp(14px,4vw,22px); line-height:1.4;
+      border: 2px solid rgba(255,255,255,0.3);
+      max-height:70vh; overflow-y:auto;
+    }
+    #proverbPanel.show{ 
+      opacity:1; transform:translate(-50%,-50%) scale(1); pointer-events:auto;
+      animation: catchSuccess 0.6s ease-out;
+    }
+    @keyframes catchSuccess {
+      0% { transform:translate(-50%,-50%) scale(0.8); box-shadow:0 25px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.2); }
+      50% { transform:translate(-50%,-50%) scale(1.05); box-shadow:0 25px 60px rgba(0,0,0,0.4), 0 0 40px rgba(69,183,209,0.8); }
+      100% { transform:translate(-50%,-50%) scale(1); box-shadow:0 25px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.2); }
+    }
+    #proverbSmall{ display:block; font-size:clamp(10px, 2.5vw, 12px); margin-top:clamp(8px, 2vw, 12px); color:#666; font-weight:500 }
+    #proverbCategory{ display:block; font-size:clamp(9px, 2vw, 11px); margin-bottom:clamp(6px, 1.5vw, 10px); color:var(--accent); 
+      font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+
+    /* Enhanced HUD with better mobile layout */
+    .hud{ 
+      position:fixed; left:clamp(8px, 2vw, 16px); top:clamp(8px, 2vw, 16px); z-index:50; 
+      background:rgba(255,255,255,0.1); color:#fff; padding:clamp(8px, 2vw, 12px) clamp(10px, 3vw, 16px); 
+      border-radius:clamp(12px, 3vw, 16px); backdrop-filter: blur(12px);
+      border:1px solid rgba(255,255,255,0.15); font-weight:700; 
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      max-width:calc(100vw - 32px);
+    }
+    .score{ font-size:clamp(14px, 4vw, 18px); margin-bottom:4px; }
+    .level{ font-size:clamp(10px, 2.5vw, 12px); opacity:0.8; }
+    .streak{ font-size:clamp(9px, 2vw, 11px); color:var(--secondary); margin-top:4px; }
+
+    /* Hunter cursor dot - better scaling */
+    .dot{ 
+      position:fixed; width:clamp(16px, 4vw, 24px); height:clamp(16px, 4vw, 24px); border-radius:50%;
+      background:radial-gradient(circle, #ff6b6b, #ff4757); 
+      box-shadow:0 0 25px rgba(255,107,107,0.9), 0 4px 15px rgba(255,71,87,0.5); 
+      z-index:45; transform:translate(-50%,-50%);
+      pointer-events:none; transition: all 0.1s ease;
+      border: 2px solid rgba(255,255,255,0.8);
+    }
+    .dot.hunting{ 
+      animation: huntPulse 1s ease-in-out infinite;
+      background:radial-gradient(circle, #4ecdc4, #45b7d1);
+      box-shadow:0 0 30px rgba(78,205,196,0.9), 0 4px 15px rgba(69,183,209,0.6);
+    }
+    @keyframes huntPulse {
+      0%, 100% { transform:translate(-50%,-50%) scale(1); }
+      50% { transform:translate(-50%,-50%) scale(1.2); }
+    }
+    .dot.caught{ animation: catchFlash 0.5s ease-out; }
+    @keyframes catchFlash {
+      0% { transform:translate(-50%,-50%) scale(1); }
+      30% { transform:translate(-50%,-50%) scale(1.8); background:radial-gradient(circle, #ffd93d, #ff9ff3); }
+      100% { transform:translate(-50%,-50%) scale(1); }
+    }
+
+    /* Controls panel - better mobile layout */
+    .controls{ 
+      position:fixed; right:clamp(8px, 2vw, 16px); top:clamp(8px, 2vw, 16px); z-index:50; 
+      display:flex; flex-direction:column; gap:clamp(6px, 1.5vw, 8px);
+    }
+    .btn{
+      background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.2);
+      padding:clamp(6px, 2vw, 8px) clamp(8px, 3vw, 12px); border-radius:clamp(8px, 2vw, 12px); 
+      font-size:clamp(10px, 2.5vw, 12px); font-weight:600;
+      backdrop-filter:blur(12px); cursor:pointer; transition:all 0.2s ease;
+      user-select:none; white-space:nowrap;
+    }
+    .btn:hover{ background:rgba(255,255,255,0.2); transform:translateY(-1px); }
+    .btn:active{ transform:translateY(0); }
+
+    /* Game instructions - responsive positioning */
+    .instructions{
+      position:fixed; bottom:clamp(12px, 3vw, 20px); left:50%; transform:translateX(-50%);
+      color:#fff; text-align:center; font-weight:600; opacity:0.8;
+      background:rgba(0,0,0,0.2); padding:clamp(8px, 2vw, 12px) clamp(12px, 4vw, 20px); 
+      border-radius:clamp(8px, 2vw, 12px);
+      backdrop-filter:blur(10px); font-size:clamp(11px, 2.5vw, 14px);
+      max-width:calc(100vw - 24px);
+    }
+
+    /* Enhanced mobile layout */
+    @media (max-width: 768px) {
+      .controls{ 
+        flex-direction:row; 
+        bottom:clamp(60px, 15vw, 80px); 
+        top:auto; 
+        right:50%; 
+        transform:translateX(50%);
+        flex-wrap:wrap;
+        justify-content:center;
+        max-width:calc(100vw - 16px);
+      }
+      .hud{ 
+        max-width:calc(50vw - 16px);
+      }
+      .instructions{ 
+        bottom:clamp(8px, 2vw, 16px); 
+        font-size:clamp(10px, 2vw, 12px); 
+        padding:clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 16px); 
+      }
+    }
+
+    /* Settings panel - better mobile */
+    #settingsPanel{
+      position:fixed; right:clamp(12px, 3vw, 20px); top:clamp(60px, 15vw, 80px); z-index:60;
+      background:rgba(255,255,255,0.1); backdrop-filter:blur(20px);
+      border:1px solid rgba(255,255,255,0.2); border-radius:clamp(12px, 3vw, 16px);
+      padding:clamp(12px, 3vw, 16px); color:#fff; font-size:clamp(12px, 3vw, 14px);
+      opacity:0; pointer-events:none; transform:translateX(20px);
+      transition:all 0.3s ease; min-width:clamp(180px, 50vw, 220px);
+      max-width:calc(100vw - 24px); max-height:calc(100vh - 120px);
+      overflow-y:auto;
+    }
+    #settingsPanel.show{ opacity:1; pointer-events:auto; transform:translateX(0); }
+    .setting{ margin-bottom:clamp(8px, 2vw, 12px); }
+    .setting label{ display:block; margin-bottom:4px; font-weight:600; font-size:clamp(11px, 2.5vw, 13px); }
+    .setting input, .setting select{ 
+      width:100%; padding:clamp(4px, 1vw, 6px) clamp(6px, 1.5vw, 8px); 
+      border:1px solid rgba(255,255,255,0.3);
+      background:rgba(255,255,255,0.1); color:#fff; border-radius:clamp(6px, 1.5vw, 8px);
+      font-size:clamp(11px, 2.5vw, 13px);
+    }
+    .setting input::placeholder{ color:rgba(255,255,255,0.6); }
+
+    /* Mobile settings override */
+    @media (max-width: 768px) {
+      #settingsPanel{
+        position:fixed; left:50%; top:50%; transform:translate(-50%, -50%);
+        right:auto; max-width:calc(100vw - 32px); max-height:calc(100vh - 64px);
+      }
+      #settingsPanel.show{ transform:translate(-50%, -50%); }
+    }
+
+    /* Special effects */
+    .screen-flash{
+      position:fixed; top:0; left:0; width:100vw; height:100vh;
+      background:rgba(255,255,255,0.3); z-index:30; pointer-events:none;
+      opacity:0; animation: screenFlash 0.3s ease-out;
+    }
+    @keyframes screenFlash {
+      0% { opacity:0; }
+      50% { opacity:1; }
+      100% { opacity:0; }
+    }
+
+    /* Improved landscape orientation handling */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .hud{ 
+        font-size:12px;
+        padding:8px 12px;
+      }
+      .controls{
+        flex-direction:row;
+        right:clamp(8px, 2vw, 16px);
+        top:auto;
+        bottom:clamp(8px, 2vw, 16px);
+        transform:none;
+      }
+      .instructions{
+        display:none; /* Hide on very short screens */
+      }
+      #proverbPanel{
+        max-height:60vh;
+        padding:clamp(12px, 3vw, 20px) clamp(16px, 4vw, 24px);
+      }
+    }
+
+    /* High DPI display optimizations */
+    @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+      canvas {
+        image-rendering: crisp-edges;
+        image-rendering: pixelated;
+      }
+    }
+
+    /* Focus styles for accessibility */
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Loading state */
+    .loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #fff;
+      font-size: 18px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  
+  <div id="proverbPanel" aria-live="polite" role="dialog" aria-label="Wisdom Panel">
+    <div id="proverbCategory"></div>
+    <div id="proverbText"></div>
+    <span id="proverbSmall">Wisdom earned through the hunt! 🏆</span>
+  </div>
+
+  <div class="hud" role="status" aria-label="Game Stats">
+    <div class="score">Score: <span id="scoreDisplay">0</span></div>
+    <div class="level">Level <span id="levelDisplay">1</span> • Catches: <span id="catchDisplay">0</span></div>
+    <div class="streak">Streak: <span id="streakDisplay">0</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="pauseBtn" aria-label="Pause game">⏸️ Pause</button>
+    <button class="btn" id="settingsBtn" aria-label="Open settings">⚙️ Settings</button>
+    <button class="btn" id="soundBtn" aria-label="Toggle sound">🔊 Sound</button>
+    <button class="btn" id="resetBtn" aria-label="Reset game">🔄 Reset</button>
+  </div>
+
+  <div id="settingsPanel" role="dialog" aria-label="Game Settings">
+    <div class="setting">
+      <label for="speedSelect">Monster Speed:</label>
+      <select id="speedSelect">
+        <option value="slow">Slow (Easy Hunt)</option>
+        <option value="normal" selected>Normal</option>
+        <option value="fast">Fast (Challenge)</option>
+        <option value="extreme">Lightning Fast</option>
+      </select>
+    </div>
+    <div class="setting">
+      <label for="categorySelect">Wisdom Category:</label>
+      <select id="categorySelect">
+        <option value="all">All Wisdom</option>
+        <option value="motivation">Motivation</option>
+        <option value="life">Life Lessons</option>
+        <option value="success">Success</option>
+        <option value="mindfulness">Mindfulness</option>
+      </select>
+    </div>
+    <div class="setting">
+      <label for="colorSelect">Monster Color:</label>
+      <select id="colorSelect">
+        <option value="blue">Ocean Blue</option>
+        <option value="purple">Mystic Purple</option>
+        <option value="green">Forest Green</option>
+        <option value="orange">Sunset Orange</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="instructions">
+    🎯 Chase and catch the monster to unlock wisdom! • Use SPACE to pause
+  </div>
+
+  <div class="dot" id="dot" aria-hidden="true"></div>
+
+  <div style="position:fixed;right:12px;bottom:8px;z-index:99;font-size:clamp(10px, 2vw, 12px);color:#fff;opacity:0.5;text-align:right;pointer-events:none;">
+    Made by <a href="https://github.com/lewin007" target="_blank" style="color:#fff;text-decoration:underline;pointer-events:auto;">Med Aziz Allegue</a>
+  </div>
+
+  <script>
+    // ===== Enhanced setup with proper error handling =====
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let devicePixelRatio = window.devicePixelRatio || 1;
+    
+    function resize(){ 
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio; 
+      canvas.height = rect.height * devicePixelRatio;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      
+      // Update responsive monster size
+      const minDimension = Math.min(rect.width, rect.height);
+      monster.baseRadius = minDimension * 0.06; // More responsive sizing
+      monster.r = monster.baseRadius;
+    }
+    
+    addEventListener('resize', debounce(resize, 100)); 
+    
+    // Debounce function to prevent excessive resize calls
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // UI elements with null checks
+    const dot = document.getElementById('dot');
+    const panel = document.getElementById('proverbPanel');
+    const pText = document.getElementById('proverbText');
+    const pCategory = document.getElementById('proverbCategory');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const levelDisplay = document.getElementById('levelDisplay');
+    const catchDisplay = document.getElementById('catchDisplay');
+    const streakDisplay = document.getElementById('streakDisplay');
+    const settingsPanel = document.getElementById('settingsPanel');
+
+    // ===== Enhanced game state with persistence =====
+    let gameState = {
+      score: 0,
+      level: 1,
+      catches: 0,
+      streak: 0,
+      bestStreak: 0,
+      paused: false,
+      soundEnabled: true,
+      monsterSpeed: 'normal',
+      category: 'all',
+      monsterColor: 'blue',
+      lastCatchTime: 0,
+      gameStartTime: Date.now(),
+      isInitialized: false
+    };
+
+    // Load saved settings
+    function loadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('monsterHuntSettings') || '{}');
+        if(saved.soundEnabled !== undefined) gameState.soundEnabled = saved.soundEnabled;
+        if(saved.monsterSpeed) gameState.monsterSpeed = saved.monsterSpeed;
+        if(saved.category) gameState.category = saved.category;
+        if(saved.monsterColor) gameState.monsterColor = saved.monsterColor;
+        if(saved.bestStreak) gameState.bestStreak = saved.bestStreak;
+        
+        // Update UI
+        document.getElementById('speedSelect').value = gameState.monsterSpeed;
+        document.getElementById('categorySelect').value = gameState.category;
+        document.getElementById('colorSelect').value = gameState.monsterColor;
+        document.getElementById('soundBtn').textContent = gameState.soundEnabled ? '🔊 Sound' : '🔇 Muted';
+      } catch(e) {
+        console.warn('Could not load settings:', e);
+      }
+    }
+
+    function saveSettings() {
+      try {
+        const settings = {
+          soundEnabled: gameState.soundEnabled,
+          monsterSpeed: gameState.monsterSpeed,
+          category: gameState.category,
+          monsterColor: gameState.monsterColor,
+          bestStreak: gameState.bestStreak
+        };
+        localStorage.setItem('monsterHuntSettings', JSON.stringify(settings));
+      } catch(e) {
+        console.warn('Could not save settings:', e);
+      }
+    }
+
+    // ===== Enhanced cursor tracking with bounds checking =====
+    const cursor = { x: 0, y: 0, trail: [], isActive: false };
+    
+    function updateCursor(e) {
+      // Handle both mouse and touch events properly
+      let clientX, clientY;
+      
+      if(e.type.startsWith('touch')) {
+        if(e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          return; // No valid touch data
+        }
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      
+      // Bounds checking
+      const rect = canvas.getBoundingClientRect();
+      cursor.x = Math.max(0, Math.min(rect.width, clientX));
+      cursor.y = Math.max(0, Math.min(rect.height, clientY));
+      cursor.isActive = true;
+      
+      // Enhanced trail with performance optimization
+      const now = performance.now();
+      cursor.trail.push({x: cursor.x, y: cursor.y, time: now});
+      
+      // Clean old trail data more efficiently
+      while(cursor.trail.length > 0 && now - cursor.trail[0].time > 800) {
+        cursor.trail.shift();
+      }
+      
+      if(dot) {
+        dot.style.left = cursor.x + 'px'; 
+        dot.style.top = cursor.y + 'px';
+      }
+    }
+
+    // Better event handling with passive optimization
+    addEventListener('pointermove', updateCursor, {passive: true});
+    addEventListener('touchmove', updateCursor, {passive: false});
+
+    // ===== Enhanced Monster with better AI =====
+    const monster = {
+      x: 0, y: 0, r: 50, baseRadius: 50,
+      vx: 0, vy: 0,
+      targetX: 0, targetY: 0,
+      fear: 0,
+      wobble: 0,
+      changeDirectionTimer: 0,
+      escapeRadius: 150,
+      lastEscapeTime: 0,
+      isVisible: true,
+      health: 1
+    };
+
+    // Initialize monster position with better bounds checking
+    function resetMonsterPosition() {
+      const rect = canvas.getBoundingClientRect();
+      const minDist = Math.max(200, monster.r * 3);
+      let attempts = 0;
+      
+      do {
+        monster.x = Math.random() * (rect.width - monster.r*2) + monster.r;
+        monster.y = Math.random() * (rect.height - monster.r*2) + monster.r;
+        attempts++;
+      } while (attempts < 50 && Math.hypot(monster.x - cursor.x, monster.y - cursor.y) < minDist);
+      
+      // Fallback positioning if no good spot found
+      if(attempts >= 50) {
+        monster.x = rect.width * 0.8;
+        monster.y = rect.height * 0.2;
+      }
+      
+      monster.fear = 0;
+      monster.vx = monster.vy = 0;
+      monster.isVisible = true;
+    }
+
+    // ===== Enhanced Proverbs with more variety =====
+    const PROVERBS = {
+      motivation: [
+        "The only impossible journey is the one you never begin.",
+        "Success is not final, failure is not fatal: it is the courage to continue that counts.",
+        "Believe you can and you're halfway there.",
+        "Your limitation—it's only your imagination.",
+        "Great things never come from comfort zones.",
+        "The way to get started is to quit talking and begin doing.",
+        "Don't watch the clock; do what it does. Keep going.",
+        "If you want to achieve greatness stop asking for permission.",
+        "A champion is defined not by their wins but by how they can recover when they fall."
+      ],
+      life: [
+        "Life is what happens while you're busy making other plans.",
+        "The best time to plant a tree was 20 years ago. The second best time is now.",
+        "Happiness is not something ready-made. It comes from your own actions.",
+        "In the middle of difficulty lies opportunity.",
+        "Life is 10% what happens to you and 90% how you react to it.",
+        "The purpose of our lives is to be happy.",
+        "Life is really simple, but we insist on making it complicated.",
+        "The biggest adventure you can take is to live the life of your dreams.",
+        "Life isn't about finding yourself. Life is about creating yourself."
+      ],
+      success: [
+        "Success is walking from failure to failure with no loss of enthusiasm.",
+        "Don't be afraid to give up the good to go for the great.",
+        "Innovation distinguishes between a leader and a follower.",
+        "The future belongs to those who believe in the beauty of their dreams.",
+        "Success is not how high you have climbed, but how you make a positive difference to the world.",
+        "The only way to do great work is to love what you do.",
+        "Opportunities don't happen. You create them.",
+        "Success is the sum of small efforts repeated day in and day out.",
+        "The road to success and the road to failure are almost exactly the same."
+      ],
+      mindfulness: [
+        "Be present in all things and thankful for all things.",
+        "The present moment is the only time over which we have dominion.",
+        "Wherever you are, be there totally.",
+        "Peace comes from within. Do not seek it without.",
+        "The mind is everything. What you think you become.",
+        "Yesterday is history, tomorrow is a mystery, today is a gift.",
+        "Mindfulness is about being fully awake in our lives.",
+        "The quieter you become, the more you are able to hear.",
+        "Breathe in the good, breathe out the bad."
+      ]
+    };
+
+    // ===== Enhanced particles with performance optimization =====
+    const particles = [];
+    const sparkles = [];
+    const maxParticles = 100; // Limit particles for performance
+    
+    function spawnParticles(x, y, count=25, type='catch'){
+      // Reduce particle count on mobile for performance
+      const isMobile = window.innerWidth < 768;
+      count = isMobile ? Math.floor(count * 0.6) : count;
+      
+      const colors = type === 'catch' ? 
+        ['#ff6b6b', '#4ecdc4', '#45b7d1', '#ffd93d'] : 
+        ['#ff9ff3', '#54a0ff', '#5f27cd'];
+        
+      for(let i=0; i<count && particles.length < maxParticles; i++){
+        const ang = Math.random()*Math.PI*2;
+        const speed = 3 + Math.random()*5;
+        particles.push({ 
+          x, y, 
+          vx: Math.cos(ang)*speed, 
+          vy: Math.sin(ang)*speed - 2, 
+          life: 1200 + Math.random()*800, 
+          age:0, 
+          size: 3+Math.random()*5,
+          color: colors[Math.floor(Math.random()*colors.length)],
+          gravity: 0.08,
+          spin: Math.random()*0.2 - 0.1
+        });
+      }
+    }
+
+    function spawnSparkles(x, y){
+      const isMobile = window.innerWidth < 768;
+      const sparkleCount = isMobile ? 4 : 8;
+      
+      for(let i=0; i<sparkleCount && sparkles.length < 50; i++){
+        sparkles.push({
+          x: x + (Math.random()-0.5)*60,
+          y: y + (Math.random()-0.5)*60,
+          life: 800, age: 0, size: 2 + Math.random()*3
+        });
+      }
+    }
+
+    // ===== Enhanced audio system with error handling =====
+    let audioContext;
+    
+    function initAudio(){
+      try {
+        if(!audioContext && gameState.soundEnabled) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      } catch(e) {
+        console.warn('Audio not supported:', e);
+        gameState.soundEnabled = false;
+      }
+    }
+
+    function playTone(freq, duration, type='sine', volume=0.1){
+      if(!gameState.soundEnabled || !audioContext) return;
+      try {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain); gain.connect(audioContext.destination);
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+        osc.type = type;
+        gain.gain.setValueAtTime(volume, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+        osc.start(); osc.stop(audioContext.currentTime + duration);
+      } catch(e) {
+        console.warn('Audio playback failed:', e);
+      }
+    }
+
+    function playSuccessSound(){
+      if(!gameState.soundEnabled) return;
+      playTone(523, 0.1); // C
+      setTimeout(()=> playTone(659, 0.1), 100); // E
+      setTimeout(()=> playTone(784, 0.2), 200); // G
+    }
+
+    // ===== Enhanced Monster AI with framerate independence =====
+    function updateMonsterAI(dt) {
+      if(!monster.isVisible || !cursor.isActive) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const distToPlayer = Math.hypot(cursor.x - monster.x, cursor.y - monster.y);
+      
+      // Framerate-independent speed calculation
+      const dtNormalized = dt / 16.67; // Normalize to 60fps baseline
+      const speeds = {slow: 1.2, normal: 2.0, fast: 3.2, extreme: 5.0};
+      const baseSpeed = speeds[gameState.monsterSpeed] * (1 + gameState.level * 0.08) * dtNormalized;
+      
+      monster.changeDirectionTimer += dt;
+      
+      if(distToPlayer < monster.escapeRadius) {
+        // FLEE! Run away from player with smarter pathfinding
+        const fleeAngle = Math.atan2(monster.y - cursor.y, monster.x - cursor.x);
+        const fleeSpeed = baseSpeed * (1.3 + monster.fear);
+        
+        // Check for walls and adjust escape direction
+        const wallBuffer = monster.r * 2;
+        let adjustedAngle = fleeAngle;
+        
+        if(monster.x < wallBuffer) adjustedAngle = Math.abs(adjustedAngle) < Math.PI/2 ? 0 : Math.PI;
+        else if(monster.x > rect.width - wallBuffer) adjustedAngle = Math.abs(adjustedAngle) < Math.PI/2 ? Math.PI : 0;
+        
+        if(monster.y < wallBuffer) adjustedAngle = adjustedAngle < 0 ? Math.PI/2 : Math.PI/2;
+        else if(monster.y > rect.height - wallBuffer) adjustedAngle = adjustedAngle > 0 ? -Math.PI/2 : -Math.PI/2;
+        
+        monster.vx += Math.cos(adjustedAngle) * 0.4 * dtNormalized;
+        monster.vy += Math.sin(adjustedAngle) * 0.4 * dtNormalized;
+        monster.fear = Math.min(1, monster.fear + 0.03 * dtNormalized);
+        
+        // Add evasive maneuvers
+        if(monster.changeDirectionTimer > 300 + Math.random()*200) {
+          const evadeAngle = adjustedAngle + (Math.random()-0.5) * Math.PI * 0.7;
+          monster.vx += Math.cos(evadeAngle) * 1.5 * dtNormalized;
+          monster.vy += Math.sin(evadeAngle) * 1.5 * dtNormalized;
+          monster.changeDirectionTimer = 0;
+        }
+        
+        if(dot) dot.classList.add('hunting');
+      } else {
+        // Wander intelligently when safe
+        if(monster.changeDirectionTimer > 600 + Math.random()*400) {
+          // Tend to move toward center if near edges
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
+          const toCenterX = centerX - monster.x;
+          const toCenterY = centerY - monster.y;
+          const distFromCenter = Math.hypot(toCenterX, toCenterY);
+          
+          let wanderAngle;
+          if(distFromCenter > Math.min(rect.width, rect.height) * 0.3) {
+            // Move toward center with some randomness
+            wanderAngle = Math.atan2(toCenterY, toCenterX) + (Math.random()-0.5) * Math.PI * 0.5;
+          } else {
+            // Random wander
+            wanderAngle = Math.random() * Math.PI * 2;
+          }
+          
+          monster.vx += Math.cos(wanderAngle) * 0.8 * dtNormalized;
+          monster.vy += Math.sin(wanderAngle) * 0.8 * dtNormalized;
+          monster.changeDirectionTimer = 0;
+        }
+        monster.fear = Math.max(0, monster.fear - 0.02 * dtNormalized);
+        if(dot) dot.classList.remove('hunting');
+      }
+      
+      // Apply movement with adaptive drag
+      const drag = 0.94;
+      monster.vx *= Math.pow(drag, dtNormalized);
+      monster.vy *= Math.pow(drag, dtNormalized);
+      
+      // Speed limit with responsive scaling
+      const maxSpeed = baseSpeed * Math.max(1, Math.min(rect.width, rect.height) / 800);
+      const currentSpeed = Math.hypot(monster.vx, monster.vy);
+      if(currentSpeed > maxSpeed) {
+        monster.vx = (monster.vx / currentSpeed) * maxSpeed;
+        monster.vy = (monster.vy / currentSpeed) * maxSpeed;
+      }
+      
+      // Update position
+      monster.x += monster.vx;
+      monster.y += monster.vy;
+      
+      // Enhanced wall collision with better bouncing
+      const wallDamping = 0.7;
+      if(monster.x <= monster.r) {
+        monster.vx = Math.abs(monster.vx) * wallDamping;
+        monster.x = monster.r;
+      } else if(monster.x >= rect.width - monster.r) {
+        monster.vx = -Math.abs(monster.vx) * wallDamping;
+        monster.x = rect.width - monster.r;
+      }
+      
+      if(monster.y <= monster.r) {
+        monster.vy = Math.abs(monster.vy) * wallDamping;
+        monster.y = monster.r;
+      } else if(monster.y >= rect.height - monster.r) {
+        monster.vy = -Math.abs(monster.vy) * wallDamping;
+        monster.y = rect.height - monster.r;
+      }
+    }
+
+    // ===== Enhanced catch system with better feedback =====
+    let canCatch = true;
+    let catchCooldown = 0;
+    
+    function catchMonster(){
+      if(!canCatch || gameState.paused || catchCooldown > 0) return;
+      
+      canCatch = false;
+      catchCooldown = 1000; // 1 second cooldown
+
+      // Enhanced score calculation
+      const basePoints = 50;
+      const levelBonus = gameState.level * 15;
+      const streakBonus = Math.min(gameState.streak * 8, 200); // Cap streak bonus
+      const speedMultiplier = {slow: 1, normal: 1.2, fast: 1.5, extreme: 2}[gameState.monsterSpeed];
+      const fearBonus = Math.floor(monster.fear * 25); // Bonus for catching scared monster
+      
+      const totalPoints = Math.floor((basePoints + levelBonus + streakBonus + fearBonus) * speedMultiplier);
+      gameState.score += totalPoints;
+      gameState.catches++;
+      gameState.streak++;
+      gameState.bestStreak = Math.max(gameState.bestStreak, gameState.streak);
+      gameState.lastCatchTime = Date.now();
+
+      // Progressive leveling with better feedback
+      const previousLevel = gameState.level;
+      gameState.level = Math.floor(gameState.catches / 5) + 1;
+      
+      if(gameState.level > previousLevel) {
+        createScreenFlash();
+        playTone(880, 0.3, 'square');
+        setTimeout(()=> playTone(1100, 0.3, 'square'), 150);
+        
+        // Increase monster escape radius slightly each level
+        monster.escapeRadius = Math.min(250, 150 + gameState.level * 5);
+      }
+
+      // Get wisdom with better category handling
+      let selectedProverbs = [];
+      let categoryName = gameState.category;
+      
+      if(gameState.category === 'all'){
+        const categories = Object.keys(PROVERBS);
+        categoryName = categories[Math.floor(Math.random() * categories.length)];
+        selectedProverbs = PROVERBS[categoryName];
+      } else {
+        selectedProverbs = PROVERBS[gameState.category] || PROVERBS.motivation;
+      }
+
+      const proverb = selectedProverbs[Math.floor(Math.random() * selectedProverbs.length)];
+
+      // Update UI with error checking
+      if(pCategory) pCategory.textContent = `${categoryName.toUpperCase()} • +${totalPoints} points`;
+      if(pText) pText.textContent = proverb;
+      if(panel) panel.classList.add('show');
+      if(dot) dot.classList.add('caught');
+
+      updateHUD();
+      spawnParticles(monster.x, monster.y, 30 + gameState.level * 2);
+      spawnSparkles(monster.x, monster.y);
+      playSuccessSound();
+      saveSettings(); // Save progress
+
+      // Reset monster with animation
+      monster.isVisible = false;
+      setTimeout(()=> {
+        resetMonsterPosition();
+        monster.fear = 0.2; // starts slightly scared
+        monster.isVisible = true;
+      }, 400);
+
+      // Hide panel after delay
+      setTimeout(()=>{ 
+        if(panel) panel.classList.remove('show'); 
+        if(dot) dot.classList.remove('caught');
+      }, 3500);
+      
+      setTimeout(()=>{ canCatch = true; }, 800);
+    }
+
+    function createScreenFlash() {
+      const flash = document.createElement('div');
+      flash.className = 'screen-flash';
+      document.body.appendChild(flash);
+      setTimeout(()=> flash.remove(), 300);
+    }
+
+    function updateHUD(){
+      if(scoreDisplay) scoreDisplay.textContent = gameState.score.toLocaleString();
+      if(levelDisplay) levelDisplay.textContent = gameState.level;
+      if(catchDisplay) catchDisplay.textContent = gameState.catches;
+      if(streakDisplay) streakDisplay.textContent = `${gameState.streak} (Best: ${gameState.bestStreak})`;
+    }
+
+    // ===== Enhanced monster colors with accessibility =====
+    const MONSTER_COLORS = {
+      blue: { primary: '#4ecdc4', secondary: '#45b7d1', accent: '#3498db', contrast: '#fff' },
+      purple: { primary: '#9b59b6', secondary: '#8e44ad', accent: '#e74c3c', contrast: '#fff' },
+      green: { primary: '#2ecc71', secondary: '#27ae60', accent: '#f1c40f', contrast: '#000' },
+      orange: { primary: '#e67e22', secondary: '#d35400', accent: '#e74c3c', contrast: '#fff' }
+    };
+
+    // ===== Enhanced monster drawing with better performance =====
+    function drawMonster(m){
+      if(!m.isVisible) return;
+      
+      const colors = MONSTER_COLORS[gameState.monsterColor];
+      const fearGlow = m.fear * 12;
+      
+      ctx.save(); // Use save/restore for better state management
+      
+      // Fear aura with performance optimization
+      if(m.fear > 0.15){
+        ctx.globalAlpha = m.fear * 0.12;
+        ctx.beginPath();
+        ctx.fillStyle = '#ffff64';
+        ctx.arc(m.x, m.y, m.r + fearGlow, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Enhanced shadow with proper perspective
+      ctx.globalAlpha = 0.15 + m.fear*0.08;
+      ctx.beginPath(); 
+      ctx.fillStyle = '#000';
+      ctx.ellipse(m.x + 2, m.y + m.r*0.7, m.r*0.9, m.r*0.4, 0, 0, Math.PI*2); 
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Body with enhanced fear effect
+      const gradient = ctx.createRadialGradient(
+        m.x - m.r*0.25, m.y - m.r*0.35, 
+        m.r*0.1, 
+        m.x, m.y, 
+        m.r*1.2
+      );
+      gradient.addColorStop(0, colors.primary); 
+      gradient.addColorStop(0.6, colors.secondary); 
+      gradient.addColorStop(1, colors.accent);
+      
+      ctx.beginPath(); 
+      ctx.fillStyle = gradient; 
+      const bodyRadius = m.r + Math.sin(m.wobble) * (1 + m.fear*2);
+      ctx.arc(m.x, m.y, bodyRadius, 0, Math.PI*2); 
+      ctx.fill();
+
+      // Enhanced horns with 3D effect
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.strokeStyle = 'rgba(200,200,200,0.8)';
+      ctx.lineWidth = 1;
+      
+      // Left horn
+      ctx.beginPath(); 
+      ctx.ellipse(m.x - m.r*0.45, m.y - m.r*0.6, m.r*0.15, m.r*0.25, -0.5, 0, Math.PI*2); 
+      ctx.fill(); ctx.stroke();
+      
+      // Right horn  
+      ctx.beginPath(); 
+      ctx.ellipse(m.x + m.r*0.45, m.y - m.r*0.6, m.r*0.15, m.r*0.25, 0.5, 0, Math.PI*2); 
+      ctx.fill(); ctx.stroke();
+
+      // Enhanced eyes with better fear animation
+      const eyeY = m.y - m.r*0.12;
+      const eyeOffset = m.r*0.32;
+      const eyeSize = m.r*0.22 + Math.sin(m.wobble*2) * 2 + m.fear*m.r*0.06;
+      
+      // Eye whites
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(m.x - eyeOffset, eyeY, eyeSize, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(m.x + eyeOffset, eyeY, eyeSize, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+      // Pupils with enhanced tracking and fear behavior
+      const maxPupilOffset = eyeSize * 0.6;
+      const leftEyeX = m.x - eyeOffset; 
+      const rightEyeX = m.x + eyeOffset;
+      
+      let lookAngleL, lookAngleR;
+      if(m.fear > 0.2) {
+        // Panicked looking around
+        const panicOffset = Math.sin(m.wobble * 5) * 0.8;
+        const playerAngle = Math.atan2(cursor.y - eyeY, cursor.x - leftEyeX);
+        lookAngleL = playerAngle + Math.PI + panicOffset;
+        lookAngleR = playerAngle + Math.PI + panicOffset;
+      } else {
+        // Normal player tracking
+        lookAngleL = Math.atan2(cursor.y - eyeY, cursor.x - leftEyeX);
+        lookAngleR = Math.atan2(cursor.y - eyeY, cursor.x - rightEyeX);
+      }
+      
+      const pupilSize = eyeSize * (0.55 + m.fear * 0.15);
+      const pLx = leftEyeX + Math.cos(lookAngleL) * maxPupilOffset;
+      const pLy = eyeY + Math.sin(lookAngleL) * maxPupilOffset;
+      const pRx = rightEyeX + Math.cos(lookAngleR) * maxPupilOffset;
+      const pRy = eyeY + Math.sin(lookAngleR) * maxPupilOffset;
+
+      ctx.fillStyle = `rgba(22,50,74,${0.85 + m.fear*0.15})`;
+      ctx.beginPath(); ctx.arc(pLx, pLy, pupilSize, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pRx, pRy, pupilSize, 0, Math.PI*2); ctx.fill();
+
+      // Mouth with enhanced expressions
+      const mouthY = m.y + m.r*0.35;
+      const mouthWidth = m.r*0.25 + m.fear*m.r*0.25;
+      const mouthHeight = m.r*0.12 + m.fear*m.r*0.18;
+      
+      ctx.beginPath(); 
+      ctx.fillStyle = '#222'; 
+      if(m.fear > 0.4) {
+        // Scared open mouth
+        ctx.ellipse(m.x, mouthY, mouthWidth, mouthHeight, 0, 0, Math.PI*2);
+      } else {
+        // Small worried line
+        ctx.ellipse(m.x, mouthY, mouthWidth*0.7, mouthHeight*0.5, 0, 0, Math.PI*2);
+      }
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ===== Enhanced effects drawing with performance optimizations =====
+    function drawTrail(){
+      if(!cursor.isActive || cursor.trail.length < 2) return;
+      
+      ctx.save();
+      const now = performance.now();
+      
+      for(let i = 1; i < cursor.trail.length; i++){
+        const curr = cursor.trail[i];
+        const age = (now - curr.time) / 500;
+        const alpha = Math.max(0, (1 - age) * 0.6);
+        const size = Math.max(1, 5 * (1 - age));
+        
+        if(alpha > 0.05){
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = '#ff6b6b';
+          ctx.beginPath();
+          ctx.arc(curr.x, curr.y, size, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawEffects(dt){
+      if(gameState.paused) return;
+      
+      ctx.save();
+      const dtNormalized = dt / 16.67;
+      
+      // Update and draw particles with performance optimization
+      for(let i = particles.length - 1; i >= 0; i--){
+        const p = particles[i]; 
+        p.age += dt; 
+        if(p.age >= p.life){ 
+          particles.splice(i, 1); 
+          continue; 
+        }
+        
+        p.vy += p.gravity * dtNormalized;
+        p.x += p.vx * dtNormalized; 
+        p.y += p.vy * dtNormalized;
+        p.vx += p.spin * dtNormalized;
+        
+        const lifeRatio = p.age / p.life;
+        const alpha = (1 - lifeRatio) * 0.9;
+        const size = p.size * (1 - lifeRatio * 0.2);
+        
+        if(alpha > 0.05 && size > 0.5) {
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = p.color;
+          ctx.beginPath(); 
+          ctx.arc(p.x, p.y, size, 0, Math.PI*2); 
+          ctx.fill();
+        }
+      }
+
+      // Update and draw sparkles with better performance
+      for(let i = sparkles.length - 1; i >= 0; i--){
+        const s = sparkles[i]; 
+        s.age += dt; 
+        if(s.age >= s.life){ 
+          sparkles.splice(i, 1); 
+          continue; 
+        }
+        
+        const lifeRatio = s.age / s.life;
+        const alpha = 1 - lifeRatio;
+        const twinkle = Math.sin(s.age * 0.008) * 0.3 + 0.7;
+        const size = s.size * alpha;
+        
+        if(alpha > 0.1 && size > 0.5) {
+          ctx.globalAlpha = alpha * twinkle;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); 
+          ctx.arc(s.x, s.y, size, 0, Math.PI*2); 
+          ctx.fill();
+        }
+      }
+      
+      ctx.restore();
+    }
+
+    // ===== Enhanced controls with better error handling =====
+    function setupControls() {
+      const pauseBtn = document.getElementById('pauseBtn');
+      const settingsBtn = document.getElementById('settingsBtn');
+      const soundBtn = document.getElementById('soundBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      
+      if(pauseBtn) {
+        pauseBtn.addEventListener('click', ()=>{
+          gameState.paused = !gameState.paused;
+          pauseBtn.textContent = gameState.paused ? '▶️ Resume' : '⏸️ Pause';
+          pauseBtn.setAttribute('aria-label', gameState.paused ? 'Resume game' : 'Pause game');
+        });
+      }
+
+      if(settingsBtn) {
+        settingsBtn.addEventListener('click', ()=>{
+          settingsPanel.classList.toggle('show');
+          settingsBtn.setAttribute('aria-expanded', settingsPanel.classList.contains('show'));
+        });
+      }
+
+      if(soundBtn) {
+        soundBtn.addEventListener('click', ()=>{
+          gameState.soundEnabled = !gameState.soundEnabled;
+          soundBtn.textContent = gameState.soundEnabled ? '🔊 Sound' : '🔇 Muted';
+          soundBtn.setAttribute('aria-label', gameState.soundEnabled ? 'Mute sound' : 'Enable sound');
+          if(gameState.soundEnabled) initAudio();
+          saveSettings();
+        });
+      }
+
+      if(resetBtn) {
+        resetBtn.addEventListener('click', ()=>{
+          if(confirm('Reset your progress? This will clear your score and start over.')) {
+            gameState.score = 0;
+            gameState.level = 1;
+            gameState.catches = 0;
+            gameState.streak = 0;
+            monster.escapeRadius = 150;
+            resetMonsterPosition();
+            updateHUD();
+            saveSettings();
+          }
+        });
+      }
+
+      // Settings controls with validation
+      const speedSelect = document.getElementById('speedSelect');
+      const categorySelect = document.getElementById('categorySelect');
+      const colorSelect = document.getElementById('colorSelect');
+      
+      if(speedSelect) {
+        speedSelect.addEventListener('change', (e)=>{
+          if(['slow', 'normal', 'fast', 'extreme'].includes(e.target.value)) {
+            gameState.monsterSpeed = e.target.value;
+            saveSettings();
+          }
+        });
+      }
+
+      if(categorySelect) {
+        categorySelect.addEventListener('change', (e)=>{
+          const validCategories = ['all', 'motivation', 'life', 'success', 'mindfulness'];
+          if(validCategories.includes(e.target.value)) {
+            gameState.category = e.target.value;
+            saveSettings();
+          }
+        });
+      }
+
+      if(colorSelect) {
+        colorSelect.addEventListener('change', (e)=>{
+          if(Object.keys(MONSTER_COLORS).includes(e.target.value)) {
+            gameState.monsterColor = e.target.value;
+            saveSettings();
+          }
+        });
+      }
+    }
+
+    // ===== Enhanced main game loop with frame limiting =====
+    let lastTime = performance.now();
+    let accumulator = 0;
+    const targetFPS = 60;
+    const frameTime = 1000 / targetFPS;
+    let animationId;
+    
+    function loop(currentTime){
+      if(!gameState.isInitialized) return;
+      
+      const deltaTime = Math.min(currentTime - lastTime, 100); // Cap delta to prevent large jumps
+      lastTime = currentTime;
+      accumulator += deltaTime;
+      
+      // Update cooldowns
+      if(catchCooldown > 0) catchCooldown = Math.max(0, catchCooldown - deltaTime);
+      
+      if(gameState.paused) {
+        // Enhanced pause screen
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.min(32, canvas.width / 25)}px Inter`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('PAUSED', canvas.width / (2 * devicePixelRatio), canvas.height / (2 * devicePixelRatio));
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = `${Math.min(16, canvas.width / 50)}px Inter`;
+        ctx.fillText('Press SPACE or click ▶️ to resume', canvas.width / (2 * devicePixelRatio), canvas.height / (2 * devicePixelRatio) + 40);
+        
+        animationId = requestAnimationFrame(loop);
+        return;
+      }
+      
+      // Clear with proper scaling
+      ctx.clearRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+
+      // Fixed timestep updates for consistent physics
+      while(accumulator >= frameTime) {
+        updateMonsterAI(frameTime);
+        accumulator -= frameTime;
+      }
+
+      // Enhanced wobble animation with framerate independence
+      monster.wobble += deltaTime * (0.004 + monster.fear*0.003);
+
+      // Draw everything
+      drawTrail();
+      drawEffects(deltaTime);
+      drawMonster(monster);
+
+      // Enhanced collision detection with better hit detection
+      if(cursor.isActive && canCatch && monster.isVisible) {
+        const dx = cursor.x - monster.x; 
+        const dy = cursor.y - monster.y; 
+        const collisionDist = Math.hypot(dx, dy);
+        const hitRadius = monster.r * 0.8; // Slightly smaller hit area for precision
+        
+        if(collisionDist < hitRadius){ 
+          catchMonster(); 
+        }
+
+        // Show proximity indicator with better visual feedback
+        if(collisionDist < monster.escapeRadius && collisionDist > hitRadius) {
+          const intensity = 1 - (collisionDist / monster.escapeRadius);
+          ctx.save();
+          ctx.globalAlpha = intensity * 0.5;
+          ctx.strokeStyle = '#ff6b6b';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.arc(monster.x, monster.y, monster.escapeRadius, 0, Math.PI*2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      animationId = requestAnimationFrame(loop);
+    }
+
+    // ===== Enhanced initialization with proper error handling =====
+    function init(){
+      try {
+        gameState.isInitialized = false;
+        
+        loadSettings();
+        resize();
+        
+        // Initialize cursor position safely
+        const rect = canvas.getBoundingClientRect();
+        cursor.x = rect.width / 2;
+        cursor.y = rect.height / 2;
+        
+        updateHUD();
+        resetMonsterPosition();
+        setupControls();
+        
+        if(dot) {
+          dot.style.left = cursor.x + 'px'; 
+          dot.style.top = cursor.y + 'px';
+        }
+        
+        // Auto-init audio on first interaction
+        const initAudioOnce = () => {
+          initAudio();
+          document.removeEventListener('click', initAudioOnce);
+          document.removeEventListener('touchstart', initAudioOnce);
+        };
+        document.addEventListener('click', initAudioOnce);
+        document.addEventListener('touchstart', initAudioOnce);
+        
+        gameState.isInitialized = true;
+        animationId = requestAnimationFrame(loop);
+        
+      } catch(error) {
+        console.error('Initialization failed:', error);
+        
+        // Fallback initialization
+        gameState.isInitialized = true;
+        animationId = requestAnimationFrame(loop);
+      }
+    }
+
+    // ===== Enhanced responsive resize handling =====
+    addEventListener('resize', debounce(()=>{
+      const oldWidth = canvas.width / devicePixelRatio;
+      const oldHeight = canvas.height / devicePixelRatio;
+      
+      resize();
+      
+      const newWidth = canvas.width / devicePixelRatio;
+      const newHeight = canvas.height / devicePixelRatio;
+      
+      // Scale monster position proportionally
+      if(oldWidth > 0 && oldHeight > 0) {
+        monster.x = (monster.x / oldWidth) * newWidth;
+        monster.y = (monster.y / oldHeight) * newHeight;
+      }
+      
+      // Keep monster within bounds
+      monster.x = Math.max(monster.r, Math.min(newWidth - monster.r, monster.x));
+      monster.y = Math.max(monster.r, Math.min(newHeight - monster.r, monster.y));
+      
+      // Update cursor bounds
+      cursor.x = Math.max(0, Math.min(newWidth, cursor.x));
+      cursor.y = Math.max(0, Math.min(newHeight, cursor.y));
+      
+    }, 150));
+
+    // ===== Enhanced touch handling with better performance =====
+    let touchHandled = false;
+    
+    document.addEventListener('touchstart', e => {
+      e.preventDefault();
+      touchHandled = true;
+      updateCursor(e);
+    }, {passive: false});
+
+    document.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if(touchHandled) updateCursor(e);
+    }, {passive: false});
+
+    document.addEventListener('touchend', e => {
+      e.preventDefault();
+      touchHandled = false;
+    }, {passive: false});
+
+    // ===== Enhanced keyboard shortcuts with better handling =====
+    addEventListener('keydown', (e)=>{
+      // Prevent default only for game keys
+      switch(e.key.toLowerCase()){
+        case ' ': 
+        case 'p': 
+          e.preventDefault();
+          if(document.getElementById('pauseBtn')) {
+            document.getElementById('pauseBtn').click(); 
+          }
+          break;
+        case 's': 
+          if(!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            if(document.getElementById('soundBtn')) {
+              document.getElementById('soundBtn').click(); 
+            }
+          }
+          break;
+        case 'r': 
+          if(!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            if(document.getElementById('resetBtn')) {
+              document.getElementById('resetBtn').click(); 
+            }
+          }
+          break;
+        case 'escape': 
+          e.preventDefault();
+          if(settingsPanel) settingsPanel.classList.remove('show'); 
+          break;
+        case '1': case '2': case '3': case '4':
+          e.preventDefault();
+          const speeds = ['slow', 'normal', 'fast', 'extreme'];
+          const speedSelect = document.getElementById('speedSelect');
+          if(speedSelect) {
+            speedSelect.value = speeds[parseInt(e.key) - 1];
+            speedSelect.dispatchEvent(new Event('change'));
+          }
+          break;
+      }
+    });
+
+    // ===== Enhanced click handling with better touch support =====
+    let clickTimeout;
+    addEventListener('click', (e)=>{
+      // Debounce clicks to prevent double-triggers
+      clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => {
+        // Close settings if clicking outside
+        if(settingsPanel && !settingsPanel.contains(e.target) && 
+           !document.getElementById('settingsBtn')?.contains(e.target)) {
+          settingsPanel.classList.remove('show');
+        }
+      }, 10);
+    });
+
+    // ===== Performance monitoring and optimization =====
+    let frameCount = 0;
+    let lastFPSTime = performance.now();
+    let currentFPS = 60;
+    
+    function updatePerformanceMetrics(currentTime) {
+      frameCount++;
+      if(currentTime - lastFPSTime >= 1000) {
+        currentFPS = frameCount;
+        frameCount = 0;
+        lastFPSTime = currentTime;
+        
+        // Adjust quality based on performance
+        if(currentFPS < 30) {
+          // Reduce particle effects for better performance
+          particles.splice(Math.floor(particles.length * 0.5));
+          sparkles.splice(Math.floor(sparkles.length * 0.5));
+        }
+      }
+    }
+
+    // ===== Visibility API for better performance =====
+    document.addEventListener('visibilitychange', () => {
+      if(document.hidden) {
+        gameState.paused = true;
+        if(document.getElementById('pauseBtn')) {
+          document.getElementById('pauseBtn').textContent = '▶️ Resume';
+        }
+      }
+    });
+
+    // ===== Enhanced error recovery =====
+    window.addEventListener('error', (e) => {
+      console.error('Game error:', e);
+      // Try to recover gracefully
+      if(!gameState.isInitialized) {
+        setTimeout(init, 1000); // Retry initialization
+      }
+    });
+
+    // ===== Memory management =====
+    function cleanupResources() {
+      // Clean up particles periodically
+      if(particles.length > maxParticles * 1.5) {
+        particles.splice(0, Math.floor(particles.length * 0.3));
+      }
+      if(sparkles.length > 75) {
+        sparkles.splice(0, Math.floor(sparkles.length * 0.3));
+      }
+      
+      // Clean up old trail data
+      const now = performance.now();
+      while(cursor.trail.length > 0 && now - cursor.trail[0].time > 1000) {
+        cursor.trail.shift();
+      }
+    }
+
+    // ===== Enhanced game loop with better error handling =====
+    function gameLoop(currentTime) {
+      try {
+        updatePerformanceMetrics(currentTime);
+        
+        const deltaTime = Math.min(currentTime - lastTime, 100);
+        lastTime = currentTime;
+        accumulator += deltaTime;
+        
+        // Update cooldowns
+        if(catchCooldown > 0) catchCooldown = Math.max(0, catchCooldown - deltaTime);
+        
+        if(gameState.paused) {
+          // Enhanced pause screen
+          const rect = canvas.getBoundingClientRect();
+          ctx.fillStyle = 'rgba(0,0,0,0.4)';
+          ctx.fillRect(0, 0, rect.width, rect.height);
+          
+          ctx.fillStyle = '#fff';
+          ctx.font = `bold ${Math.min(32, rect.width / 25)}px Inter`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('PAUSED', rect.width / 2, rect.height / 2);
+          
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.font = `${Math.min(16, rect.width / 50)}px Inter`;
+          ctx.fillText('Press SPACE or click ▶️ to resume', rect.width / 2, rect.height / 2 + 40);
+          
+          animationId = requestAnimationFrame(gameLoop);
+          return;
+        }
+        
+        // Clear canvas with proper dimensions
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+
+        // Fixed timestep updates for consistent physics
+        while(accumulator >= frameTime) {
+          updateMonsterAI(frameTime);
+          accumulator -= frameTime;
+        }
+
+        // Enhanced wobble animation
+        monster.wobble += deltaTime * (0.004 + monster.fear*0.003);
+        monster.r = monster.baseRadius + Math.sin(monster.wobble) * (1 + monster.fear*3);
+
+        // Draw everything
+        drawTrail();
+        drawEffects(deltaTime);
+        drawMonster(monster);
+
+        // Enhanced collision detection
+        if(cursor.isActive && canCatch && monster.isVisible && catchCooldown <= 0) {
+          const dx = cursor.x - monster.x; 
+          const dy = cursor.y - monster.y; 
+          const collisionDist = Math.hypot(dx, dy);
+          const hitRadius = monster.r * 0.75;
+          
+          if(collisionDist < hitRadius){ 
+            catchMonster(); 
+          }
+
+          // Proximity indicator with better performance
+          if(collisionDist < monster.escapeRadius && collisionDist > hitRadius) {
+            const intensity = 1 - (collisionDist / monster.escapeRadius);
+            ctx.save();
+            ctx.globalAlpha = intensity * 0.4;
+            ctx.strokeStyle = '#ff6b6b';
+            ctx.lineWidth = Math.max(1, 3 * intensity);
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.arc(monster.x, monster.y, monster.escapeRadius, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        // Periodic cleanup
+        if(Math.random() < 0.01) cleanupResources();
+
+        animationId = requestAnimationFrame(gameLoop);
+        
+      } catch(error) {
+        console.error('Game loop error:', error);
+        // Try to recover
+        setTimeout(() => {
+          if(gameState.isInitialized) {
+            animationId = requestAnimationFrame(gameLoop);
+          }
+        }, 100);
+      }
+    }
+
+    // ===== Enhanced orientation change handling =====
+    addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        resize();
+        resetMonsterPosition();
+      }, 100);
+    });
+
+    // ===== Better focus management =====
+    addEventListener('focus', () => {
+      if(gameState.paused && gameState.isInitialized) {
+        // Don't auto-resume, let user choose
+      }
+    });
+
+    addEventListener('blur', () => {
+      if(gameState.isInitialized && !gameState.paused) {
+        gameState.paused = true;
+        if(document.getElementById('pauseBtn')) {
+          document.getElementById('pauseBtn').textContent = '▶️ Resume';
+        }
+      }
+    });
+
+    // ===== Enhanced page lifecycle handling =====
+    if('serviceWorker' in navigator) {
+      // Basic service worker support check
+    }
+
+    // Prevent context menu on long press (mobile)
+    addEventListener('contextmenu', e => e.preventDefault());
+
+    // ===== Start the enhanced game =====
+    // Wait for DOM to be fully loaded
+    if(document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+
+    // ===== Cleanup on page unload =====
+    addEventListener('beforeunload', () => {
+      if(animationId) cancelAnimationFrame(animationId);
+      saveSettings();
+    });
+
+  </script>
+</body>
+</html>
